@@ -65,6 +65,12 @@ make -j
 sudo make install
 ```
 
+if you want to use hardware to accelerate CRC calculation.
+
+```bash
+cmake -D USE_DSA=1
+```
+
 Finally, setup a systemd service for overlaybd-tcmu backstore.
 
 ```bash
