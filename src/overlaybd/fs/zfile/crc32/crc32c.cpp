@@ -22,9 +22,11 @@
 
 #include "../../../alog.h"
 #include "crc32c.h"
-#ifdef ENABLE_DSA
 #include <dml/dml.hpp>
-#endif
+#include <isa-l/crc.h>
+extern "C" {
+#include <pci/pci.h>
+}
 
 namespace FileSystem {
 
@@ -616,7 +618,6 @@ static uint32_t crc32c_sw(const uint8_t *buffer, size_t nbytes, uint32_t crc) {
     }
 }
 
-#ifdef ENABLE_DSA
 static uint32_t crc32c_dml(const uint8_t *data, size_t nbytes, uint32_t crc) {
     uint32_t crc_seed = ~crc;
     auto result = dml::execute<dml::hardware>(dml::crc, dml::make_view(data, nbytes), crc_seed);
@@ -625,15 +626,43 @@ static uint32_t crc32c_dml(const uint8_t *data, size_t nbytes, uint32_t crc) {
     }
     return result.crc_value ^ 0xFFFFFFFF;
 }
-#endif
+
+static uint32_t crc32c_isal(const uint8_t *data, size_t nbytes, uint32_t crc) {
+    uint32_t sum = crc;
+
+    sum = crc32_iscsi((unsigned char *)data, nbytes, crc);
+    return sum;
+}
+
+bool check_dsa() {
+    struct pci_access *pacc;
+    struct pci_dev *dev;
+    unsigned int c;
+
+    pacc = pci_alloc();
+    pci_init(pacc);
+    pci_scan_bus(pacc);
+    for (dev = pacc->devices; dev; dev = dev->next) {
+        pci_fill_info(dev, PCI_FILL_IDENT | PCI_FILL_BASES);
+        if ((dev->vendor_id == 0x8086) && (dev->device_id == 0x0b25)) {
+            pci_cleanup(pacc);
+            return true;
+        }
+    }
+    std::cout << "No DSA found!" << std::endl;
+    pci_cleanup(pacc);
+    return false;
+}
 
 static void crc_init() {
-#ifdef ENABLE_DSA
-    crc32c_func = crc32c_dml;
-    return;
-#endif
     __builtin_cpu_init();
-    if (__builtin_cpu_supports("sse4.2")) {
+    if (check_dsa()) {
+        std::cout << "compute with dsa" << std::endl;
+        crc32c_func = crc32c_dml;
+    } else if (__builtin_cpu_supports("avx512f")) {
+        std::cout << "compute with avx512f" << std::endl;
+        crc32c_func = crc32c_isal;
+    } else if (__builtin_cpu_supports("sse4.2")) {
         crc32c_func = crc32c_hw;
     } else {
         crc32c_func = crc32c_sw;
