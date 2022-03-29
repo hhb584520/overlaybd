@@ -22,11 +22,15 @@
 
 #include "../../../alog.h"
 #include "crc32c.h"
-#include <dml/dml.hpp>
-#include <isa-l/crc.h>
+#ifdef ENABLE_DSA
+#include "dml/dml.hpp"
 extern "C" {
 #include <pci/pci.h>
 }
+#endif
+#ifdef ENABLE_ISAL
+#include <crc.h>
+#endif
 
 namespace FileSystem {
 
@@ -618,20 +622,14 @@ static uint32_t crc32c_sw(const uint8_t *buffer, size_t nbytes, uint32_t crc) {
     }
 }
 
+#ifdef ENABLE_DSA
 static uint32_t crc32c_dml(const uint8_t *data, size_t nbytes, uint32_t crc) {
     uint32_t crc_seed = ~crc;
     auto result = dml::execute<dml::hardware>(dml::crc, dml::make_view(data, nbytes), crc_seed);
     if (result.status != dml::status_code::ok) {
-        std::cout << "Failure dml::crc occurred!\n";
+        LOG_INFO("Failure dml::crc occurred!");
     }
     return result.crc_value ^ 0xFFFFFFFF;
-}
-
-static uint32_t crc32c_isal(const uint8_t *data, size_t nbytes, uint32_t crc) {
-    uint32_t sum = crc;
-
-    sum = crc32_iscsi((unsigned char *)data, nbytes, crc);
-    return sum;
 }
 
 bool check_dsa() {
@@ -644,25 +642,42 @@ bool check_dsa() {
     pci_scan_bus(pacc);
     for (dev = pacc->devices; dev; dev = dev->next) {
         pci_fill_info(dev, PCI_FILL_IDENT | PCI_FILL_BASES);
-        if ((dev->vendor_id == 0x8086) && (dev->device_id == 0x0b25)) {
+        if (dev->vendor_id == 0x8086 && dev->device_id == 0x0b25) {
             pci_cleanup(pacc);
             return true;
         }
     }
-    std::cout << "No DSA found!" << std::endl;
     pci_cleanup(pacc);
     return false;
 }
+#endif
+
+#ifdef ENABLE_ISAL
+static uint32_t crc32c_isal(const uint8_t *data, size_t nbytes, uint32_t crc) {
+    uint32_t sum = crc;
+
+    sum = crc32_iscsi((unsigned char *)data, nbytes, crc);
+    return sum;
+}
+#endif
 
 static void crc_init() {
     __builtin_cpu_init();
+#ifdef ENABLE_DSA
     if (check_dsa()) {
-        std::cout << "compute with dsa" << std::endl;
+        LOG_INFO("compute with dsa");
         crc32c_func = crc32c_dml;
-    } else if (__builtin_cpu_supports("avx512f")) {
-        std::cout << "compute with avx512f" << std::endl;
+        return;
+    }
+#endif
+#ifdef ENABLE_ISAL
+    if (__builtin_cpu_supports("avx512f")) {
+        LOG_INFO("compute with avx512f");
         crc32c_func = crc32c_isal;
-    } else if (__builtin_cpu_supports("sse4.2")) {
+        return;
+    }
+#endif
+    if (__builtin_cpu_supports("sse4.2")) {
         crc32c_func = crc32c_hw;
     } else {
         crc32c_func = crc32c_sw;
