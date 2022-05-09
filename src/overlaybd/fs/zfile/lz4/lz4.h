@@ -42,6 +42,9 @@ extern "C" {
 /* --- Dependency --- */
 #include <stddef.h>   /* size_t */
 
+#ifdef ENABLE_QAT
+#include "lz4-qat.h"
+#endif
 
 /**
   Introduction

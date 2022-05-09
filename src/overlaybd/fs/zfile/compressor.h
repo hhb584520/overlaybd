@@ -20,6 +20,7 @@
 #include <cstdlib>
 #include <cstdint>
 #include <memory>
+#include "lz4/lz4.h"
 
 namespace FileSystem {
 class IFile;
@@ -80,6 +81,29 @@ public:
     virtual int decompress(const unsigned char *src, size_t src_len, unsigned char *dst,
                            size_t dst_len) = 0;
 };
+
+#ifdef ENABLE_QAT
+class Compressor_lz4_qat : public ICompressor {
+public:
+    uint32_t max_dst_size;
+    uint32_t src_blk_size;
+    LZ4_qat_param *pQat;
+
+    Compressor_lz4_qat();
+
+    ~Compressor_lz4_qat();
+
+    int init(const CompressArgs *args);
+
+    int compress(const unsigned char *src, size_t src_len, unsigned char *dst, size_t dst_len);
+
+    int compress_batch(const unsigned char *const raw_data[], size_t steplist[],
+                       unsigned char *compressed_data[], size_t compressed_len[], ssize_t cur,
+                       size_t dst_len);
+
+    int decompress(const unsigned char *src, size_t src_len, unsigned char *dst, size_t dst_len);
+};
+#endif
 
 extern "C" ICompressor *create_compressor(const CompressArgs *args);
 } // namespace ZFile

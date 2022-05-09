@@ -1,5 +1,5 @@
 file(GLOB SOURCE_ZFILE "*.cpp")
-file(GLOB SOURCE_LZ4 "lz4/lz4.c")
+file(GLOB SOURCE_LZ4 "lz4/*.c")
 file(GLOB SOURCE_CRC32 "crc32/crc32c.cpp")
 
 set (CMAKE_CXX_STANDARD 17)
@@ -26,6 +26,12 @@ set (CMAKE_CXX_STANDARD 14)
 add_library(zfile_lib STATIC  ${SOURCE_ZFILE} ${SOURCE_LZ4})
 target_link_libraries(zfile_lib crc32_lib)
 target_compile_options(zfile_lib PUBLIC -msse4.2 -mcrc32)
+
+if (ENABLE_QAT)
+    target_compile_definitions(zfile_lib PUBLIC -DENABLE_QAT)
+    target_link_libraries(zfile_lib -lpthread -lpci)
+    #target_link_libraries(zfile_lib -lqat_s -lusdm_drv_s -lpthread -lpci)
+endif()
 
 if (BUILD_TESTING)
     add_subdirectory(test)
