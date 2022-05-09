@@ -79,13 +79,20 @@ If you want to use DSA hardware to accelerate CRC calculation.
 cmake -D ENABLE_DSA=1 ..
 ```
 
-If you want to use avx512 to accelerate CRC calculation.
+If you want to use AVX512 to accelerate CRC calculation.
 
 ```bash
 cmake -D ENABLE_ISAL=1 ..
 ```
 
 For more informations go to `overlaybd/src/overlaybd/fs/zfile/README.md`.
+If you want to use QAT hardware to accelerate compression and decompression.
+
+```bash
+cmake -D ENABLE_QAT=1 ..
+```
+
+For more informations go to `overlaybd/src/overlaybd/fs/zfile/README.md`. 
 
 Finally, setup a systemd service for overlaybd-tcmu backstore.
 
