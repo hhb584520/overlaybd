@@ -17,7 +17,7 @@
 #include "../overlaybd/fs/filesystem.h"
 #include "../overlaybd/fs/localfs.h"
 #include "../overlaybd/fs/virtual-file.h"
-#include "../overlaybd/fs/zfile/zfile.h"
+#include "../overlaybd/fs/efile/efile.h"
 #include "../overlaybd/fs/tar_file.h"
 #include "../overlaybd/utility.h"
 #include "../overlaybd/uuid.h"
@@ -33,7 +33,7 @@
 
 using namespace std;
 using namespace FileSystem;
-using namespace ZFile;
+using namespace EFile;
 
 int usage() {
     static const char msg[] = "overlaybd-efile is a tool to encrypt/decrypt efile. \n"
@@ -59,7 +59,7 @@ int main(int argc, char **argv) {
     int parse_idx = 1;
     bool rm_old = false;
     bool tar = false;
-    CompressOptions opt;
+    CryptOptions opt;
     opt.verify = 1;
     while ((ch = getopt(argc, argv, "fxd:")) != -1) {
         switch (ch) {
@@ -94,9 +94,9 @@ int main(int argc, char **argv) {
     }
 
     int ret = 0;
-    CompressArgs args(opt);
+    CryptArgs args(opt);
     if (op == 0) {
-        printf("compress file %s as %s\n", fn_src, fn_dst);
+        printf("encrypt file %s as %s\n", fn_src, fn_dst);
         IFile *infile = lfs->open(fn_src, O_RDONLY);
         if (infile == nullptr) {
             LOG_ERROR_RETURN(0, -1, "open source file error.");
@@ -109,14 +109,14 @@ int main(int argc, char **argv) {
         }
         DEFER(delete outfile);
 
-        ret = zfile_compress(infile, outfile, &args);
+        ret = efile_encrypt(infile, outfile, &args);
         if (ret != 0) {
-            LOG_ERROR_RETURN(0, -1, "compress fail. (err: `, msg: `)", errno, strerror(errno));
+            LOG_ERROR_RETURN(0, -1, "encrypt fail. (err: `, msg: `)", errno, strerror(errno));
         }
-        LOG_INFO("compress file done.");
+        LOG_INFO("encrypt file done.");
         return ret;
     } else {
-        printf("decompress file %s as %s\n", fn_src, fn_dst);
+        printf("decrypt file %s as %s\n", fn_src, fn_dst);
 
         IFile *infile = fs->open(fn_src, O_RDONLY);
         if (infile == nullptr) {
@@ -130,11 +130,11 @@ int main(int argc, char **argv) {
         }
         DEFER(delete outfile);
 
-        ret = zfile_decompress(infile, outfile);
+        ret = efile_decrypt(infile, outfile);
         if (ret != 0) {
-            LOG_ERROR_RETURN(0, -1, "decompress fail. (err: `, msg: `)", errno, strerror(errno));
+            LOG_ERROR_RETURN(0, -1, "decrypt fail. (err: `, msg: `)", errno, strerror(errno));
         }
-        LOG_INFO("decompress file done.");
+        LOG_INFO("decrypt file done.");
         return ret;
     }
 }
