@@ -755,26 +755,8 @@ static int write_header_trailer(IFile *file, bool is_header, bool is_sealed, boo
     return (int)file->pwrite(pht, CompressionFile::HeaderTrailer::SPACE, offset);
 }
 
-#ifdef ENABLE_QAT
-bool check_qat() {
-    struct pci_access *pacc;
-    struct pci_dev *dev;
+int zfile_compress(IFile *file, IFile *as, const CompressArgs *args) {
 
-    pacc = pci_alloc();
-    pci_init(pacc);
-    pci_scan_bus(pacc);
-    for (dev = pacc->devices; dev; dev = dev->next) {
-        pci_fill_info(dev, PCI_FILL_IDENT | PCI_FILL_BASES);
-        if (dev->vendor_id == QAT_VENDOR_ID && dev->device_id == QAT_DEVICE_ID) {
-            pci_cleanup(pacc);
-            return true;
-        }
-    }
-    pci_cleanup(pacc);
-    return false;
-}
-
-int zfile_compress_qat(IFile *file, IFile *as, const CompressArgs *args) {
     if (args == nullptr) {
         LOG_ERROR_RETURN(EINVAL, -1, "CompressArgs is null");
     }
@@ -788,7 +770,6 @@ int zfile_compress_qat(IFile *file, IFile *as, const CompressArgs *args) {
     DEFER(delete compressor);
     if (compressor == nullptr)
         return -1;
-    Compressor_lz4_qat *compressor_qat = dynamic_cast<Compressor_lz4_qat *>(compressor);
     char buf[CompressionFile::HeaderTrailer::SPACE];
     auto pht = new (buf) CompressionFile::HeaderTrailer;
     pht->set_compress_option(opt);
@@ -806,124 +787,57 @@ int zfile_compress_qat(IFile *file, IFile *as, const CompressArgs *args) {
     bool crc32_verify = opt.verify;
     std::vector<uint32_t> block_len{};
     uint64_t moffset = CompressionFile::HeaderTrailer::SPACE + opt.dict_size;
-    int nbatch = 256;
-    unsigned char *raw_data[nbatch];
-    unsigned char *compressed_data[nbatch];
-    for (int i = 0; i < nbatch; i++) {
-        raw_data[i] = new unsigned char[buf_size];
-        compressed_data[i] = new unsigned char[buf_size];
-    }
-    size_t steplist[nbatch];
-    size_t compressed_len[nbatch];
-    LOG_INFO("compress with QAT start....");
-    for (ssize_t i = 0, cur = 0; i < raw_data_size; i += block_size, cur++) {
-        bool performOpNow = false;
-        auto step = std::min((ssize_t)block_size, (ssize_t)(raw_data_size - i));
-        steplist[cur] = step;
-        auto ret = file->pread(raw_data[cur], step, i);
+    int nbatch = compressor->nbatch();
+    LOG_DEBUG("nbatch: `, buffer need allocate: `", nbatch, nbatch * buf_size);
+    auto raw_data = new unsigned char[nbatch * buf_size];
+    DEFER(delete [] raw_data);
+    auto compressed_data = new unsigned char[nbatch * buf_size];
+    DEFER(delete [] compressed_data);
+    std::vector<size_t> raw_chunk_len, compressed_len;
+    compressed_len.resize(nbatch);
+    raw_chunk_len.resize(nbatch);
+    LOG_INFO("compress with start....");
+    off_t i = 0;
+    while (i < raw_data_size) {
+        int n = 0;
+        auto step = std::min((ssize_t)block_size * nbatch, (ssize_t)(raw_data_size - i));
+        auto ret = file->pread(raw_data, step, i);
         if (ret < step) {
             LOG_ERRNO_RETURN(0, -1, "failed to read from source file. (readn: `)", ret);
         }
-        if ((cur + 1) % nbatch == 0 || (i + step >= raw_data_size))
-            performOpNow = true;
-        if (performOpNow) {
-            ret = compressor_qat->compress_batch(raw_data, steplist, compressed_data,
-                                                 compressed_len, cur, buf_size);
-            if (ret < 0)
-                return -1;
-            for (ssize_t j = 0; j <= cur; j++) {
-                if (crc32_verify) {
-                    auto crc32_code = crc32c(compressed_data[j], compressed_len[j]);
-                    *((uint32_t *)&compressed_data[j][compressed_len[j]]) = crc32_code;
-                    LOG_DEBUG("append ` bytes crc32_code: {offset: `, count: `, crc32: `}",
-                              sizeof(uint32_t), moffset, compressed_len[j], crc32_code);
-                    compressed_len[j] += sizeof(uint32_t);
-                }
-                ret = as->write(compressed_data[j], compressed_len[j]);
-                if (ret < (ssize_t)compressed_len[j]) {
-                    LOG_ERRNO_RETURN(0, -1, "failed to write compressed data.");
-                }
-                block_len.push_back(compressed_len[j]);
-                moffset += compressed_len[j];
+        i += step;
+        while (step > 0) {
+            if (step < block_size) {
+                raw_chunk_len[n++] = step;
+                break;
             }
-            cur = -1;
+            raw_chunk_len[n++] = block_size;
+            step -= block_size;
+        }
+        ret = compressor->compress_batch(raw_data, &(raw_chunk_len[0]), compressed_data, n * buf_size, 
+            &(compressed_len[0]), n);
+        if (ret != 0) return -1;
+        for (off_t j = 0; j < n; j++) {
+            ret = as->write(&compressed_data[j * buf_size], compressed_len[j]);
+            if (ret < (ssize_t)compressed_len[j]) {
+                LOG_ERRNO_RETURN(0, -1, "failed to write compressed data.");
+            }
+            if (crc32_verify) {
+                auto crc32_code = crc32c(&compressed_data[j * buf_size], compressed_len[j]);
+                LOG_DEBUG("append ` bytes crc32_code: {offset: `, count: `, crc32: `}",
+                            sizeof(uint32_t), moffset, compressed_len[j], crc32_code);
+                compressed_len[j] += sizeof(uint32_t);
+                ret = as->write(&crc32_code, sizeof(uint32_t));
+                if (ret < sizeof(uint32_t)) {
+                    LOG_ERRNO_RETURN(0, -1, "failed to write crc32code, offset: `, crc32: `", 
+                        moffset, crc32_code);
+                }
+            }
+            block_len.push_back(compressed_len[j]);
+            moffset += compressed_len[j];
         }
     }
-    for (int i = 0; i < nbatch; i++) {
-        delete raw_data[i];
-        delete compressed_data[i];
-    }
-    uint64_t index_offset = moffset;
-    uint64_t index_size = block_len.size();
-    ssize_t index_bytes = index_size * sizeof(uint32_t);
-    LOG_INFO("write index (offset: `, count: ` size: `)", index_offset, index_size, index_bytes);
-    if (as->write(&block_len[0], index_bytes) != index_bytes) {
-        LOG_ERRNO_RETURN(0, -1, "failed to write index.");
-    }
-    pht->index_offset = index_offset;
-    pht->index_size = index_size;
-    pht->raw_data_size = raw_data_size;
-    LOG_INFO("write trailer.");
-    ret = write_header_trailer(as, false, true, true, pht);
-    if (ret < 0)
-        LOG_ERRNO_RETURN(0, -1, "failed to write trailer");
-    LOG_INFO("overwrite file header.");
-    ret = write_header_trailer(as, true, false, true, pht, 0);
-    if (ret < 0) {
-        LOG_ERRNO_RETURN(0, -1, "failed to overwrite header");
-    }
-    return 0;
-}
-#endif
-
-int zfile_compress_software(IFile *file, IFile *as, const CompressArgs *args) {
-    if (args == nullptr) {
-        LOG_ERROR_RETURN(EINVAL, -1, "CompressArgs is null");
-    }
-    if (file == nullptr || as == nullptr) {
-        LOG_ERROR_RETURN(EINVAL, -1, "file ptr is NULL (file: `, as: `)", file, as);
-    }
-    CompressOptions opt = args->opt;
-    LOG_INFO("create compress file. [ block size: `, type: `, enable_checksum: `]", opt.block_size,
-             opt.type, opt.verify);
-    auto compressor = create_compressor(args);
-    DEFER(delete compressor);
-    if (compressor == nullptr)
-        return -1;
-    char buf[CompressionFile::HeaderTrailer::SPACE];
-    auto pht = new (buf) CompressionFile::HeaderTrailer;
-    pht->set_compress_option(opt);
-
-    LOG_INFO("write header.");
-    auto ret = write_header_trailer(as, true, false, true, pht);
-    if (ret < 0) {
-        LOG_ERRNO_RETURN(0, -1, "failed to write header");
-    }
-
-    auto raw_data_size = file->lseek(0, SEEK_END);
-    LOG_INFO("source data size: `", raw_data_size);
-    auto block_size = opt.block_size;
-    auto buf_size = block_size + BUF_SIZE;
-    auto raw_data = std::unique_ptr<unsigned char[]>(new unsigned char[buf_size]);
-    auto compressed_data = std::unique_ptr<unsigned char[]>(new unsigned char[buf_size]);
-    std::vector<uint32_t> block_len{};
-    uint64_t moffset = CompressionFile::HeaderTrailer::SPACE + opt.dict_size;
-    LOG_INFO("compress start....");
-    for (ssize_t i = 0; i < raw_data_size; i += block_size) {
-        auto step = std::min((ssize_t)block_size, (ssize_t)(raw_data_size - i));
-        auto ret = file->pread(raw_data.get(), step, i);
-        if (ret < step) {
-            LOG_ERRNO_RETURN(0, -1, "failed to read from source file. (readn: `)", ret);
-        }
-        auto compressed_len = compress_data(compressor, raw_data.get(), step, compressed_data.get(),
-                                            buf_size, opt.verify);
-        ret = as->write(compressed_data.get(), compressed_len);
-        if (ret < (ssize_t)compressed_len) {
-            LOG_ERRNO_RETURN(0, -1, "failed to write compressed data.");
-        }
-        block_len.push_back(compressed_len);
-        moffset += compressed_len;
-    }
+    
     uint64_t index_offset = moffset;
     uint64_t index_size = block_len.size();
     ssize_t index_bytes = index_size * sizeof(uint32_t);
@@ -946,14 +860,6 @@ int zfile_compress_software(IFile *file, IFile *as, const CompressArgs *args) {
     return 0;
 }
 
-int zfile_compress(IFile *file, IFile *as, const CompressArgs *args) {
-#ifdef ENABLE_QAT
-    if (check_qat()) {
-        return zfile_compress_qat(file, as, args);
-    }
-#endif
-    return zfile_compress_software(file, as, args);
-}
 
 int zfile_decompress(IFile *src, IFile *dst) {
     auto file = (CompressionFile *)zfile_open_ro(src, /*verify = */ true);
