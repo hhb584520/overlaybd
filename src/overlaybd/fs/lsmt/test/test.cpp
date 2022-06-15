@@ -570,6 +570,32 @@ TEST_F(FileTest2, commit_zfile) {
     delete file;
 }
 
+TEST_F(FileTest2, commit_efile) {
+    reset_verify_file();
+
+    auto *file = create_file();
+    auto fn_c0 = "commit0";
+    auto fn_c1 = "commit1";
+    auto fcommit0 = lfs->open(fn_c0, O_RDWR | O_CREAT | O_TRUNC, S_IRWXU);
+    auto fcommit1 = lfs->open(fn_c1, O_RDWR | O_CREAT | O_TRUNC, S_IRWXU);
+    CompressOptions opt;
+    opt.verify = 1;
+    CompressArgs efile_args(opt);
+    auto fstream_efile = EFile::new_efile_builder(fcommit1, &efile_args);
+    CommitArgs args1(fstream_efile);
+
+    LOG_INFO("start efileBuilder commit");
+    file->commit(args1);
+    fstream_efile->close();
+    file->close();
+    LOG_INFO("verify commit file from StreamingZFile");
+    auto efile = EFile::efile_open_ro(fcommit1);
+    file = (IFileRW *)::open_file_ro(efile);
+    verify_file((IFileRO *)file);
+    delete efile;
+    delete file;
+}
+
 TEST_F(FileTest3, stack_files) {
     CleanUp();
     cout << "generating " << FLAGS_layers << " RO layers by randwrite()" << endl;

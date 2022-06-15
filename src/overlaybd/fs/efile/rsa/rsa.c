@@ -40,12 +40,64 @@ int RSA_cryptBound(int isize) {
     }
 }
 
-int RSA_encrypt(const char *source, char *dest, int inputSize, int maxOutputSize) {
-    return 0;
+i16_t mod_exp(i16_t a, i16_t b, i16_t m) {
+
+    /* Set the result to 1 */
+    i16_t ans = 1;
+
+    /* Bring the value of base withing the modulo range */
+    a = a % m;
+
+    /* Stop if the value of base is 0 */
+    if (a == 0) {
+
+        return 0;
+    }
+
+    while (b > 0) {
+        /* If b is even, then update the answer */
+        if (b & 1) {
+            ans = (ans * a) % m;
+        }
+
+        /* Update the exponent */
+        b = b >> 1;
+
+        /* Update the multiplier */
+        a = (a * a) % m;
+    }
+
+    return ans;
 }
 
-int RSA_decrypt(const char *source, char *dest, int inputSize, int maxOutputSize) {
-    return 0;
+int RSA_encrypt(KeyHandle *hk, const i8_t *plaintext, i16_t *ciphertext, int inputSize, int maxOutputSize) {
+    unsigned int e = 6239;
+    unsigned int n = 34393;
+    int len = 0;
+
+    /* Encrypt the plaintext message block by block */
+    for (int i = 0; i < inputSize; i++) {
+        ciphertext[i] = mod_exp((i16_t)plaintext[i], e, n);
+        len++;
+    }
+    maxOutputSize = len;
+
+    return len;
+}
+
+int RSA_decrypt(KeyHandle *hk, i8_t *plaintext, const i16_t *ciphertext, int inputSize, int maxOutputSize) {
+    unsigned int d = 3119;
+    unsigned int n = 34393;
+    int len = 0;
+
+    /* Decrpyt the ciphertext message block by block */
+    for (int i = 0; i < inputSize; i++) {
+        plaintext[i] = (i8_t)mod_exp(ciphertext[i], d, n);
+        len++;
+    }
+    maxOutputSize = len;
+
+    return len;
 }
 
 int RSA_generateKeyPair() {

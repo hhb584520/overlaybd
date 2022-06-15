@@ -70,7 +70,7 @@ public:
         LOG_INFO("write done.");
     }
 
-    void seqread(IFile *fsrc, IFile *fzfile) {
+    void seqread(IFile *fsrc, IFile *fefile) {
         LOG_INFO("start seqread.");
         struct stat _st;
         if (fsrc->fstat(&_st) != 0) {
@@ -81,7 +81,7 @@ public:
         char data0[16384]{}, data1[16384]{};
         for (auto i = 0; i < size; i += sizeof(data0)) {
             fsrc->pread(data0, sizeof(data0), i);
-            fzfile->pread(data1, sizeof(data1), i);
+            fefile->pread(data1, sizeof(data1), i);
             auto r = memcmp(data0, data1, sizeof(data0));
             EXPECT_EQ(r, 0);
             if (r != 0) {
@@ -91,7 +91,7 @@ public:
         }
     }
 
-    void randread(IFile *fsrc, IFile *fzfile) {
+    void randread(IFile *fsrc, IFile *fefile) {
         int read_times = 1000;
         LOG_INFO("start randread. (` times)", read_times);
         struct stat _st;
@@ -116,9 +116,9 @@ public:
                 return;
             }
         }
-        char large_data0[ZFile::MAX_READ_SIZE << 1]{};
-        char large_data1[ZFile::MAX_READ_SIZE << 1]{};
-        LOG_INFO("start large read. (size: `K, 5K times)", (ZFile::MAX_READ_SIZE << 1) >> 10);
+        char large_data0[EFile::MAX_READ_SIZE << 1]{};
+        char large_data1[EFile::MAX_READ_SIZE << 1]{};
+        LOG_INFO("start large read. (size: `K, 5K times)", (EFile::MAX_READ_SIZE << 1) >> 10);
         for (int i = 0; i < 5000; i++) {
             auto len = sizeof(large_data0) / 512;
             auto offset = rand() % (counts - len);
@@ -137,9 +137,9 @@ public:
 TEST_F(EFileTest, verify_rsa) {
     // log_output_level = 1;
     auto fn_src = "verify.data";
-    auto fn_lz4 = "verify.ersa";
+    auto fn_rsa = "verify.ersa";
     unique_ptr<IFile> fsrc(lfs->open(fn_src, O_CREAT | O_TRUNC | O_RDWR, 0644));
-    unique_ptr<IFile> fdst(lfs->open(fn_lz4, O_CREAT | O_TRUNC | O_RDWR, 0644));
+    unique_ptr<IFile> fdst(lfs->open(fn_rsa, O_CREAT | O_TRUNC | O_RDWR, 0644));
     if (!fsrc || !fdst) {
         LOG_ERROR("err: `(`)", errno, strerror(errno));
     }
@@ -152,56 +152,14 @@ TEST_F(EFileTest, verify_rsa) {
         return;
     }
     fdst->close();
-    auto file = lfs->open(fn_lz4, O_RDONLY /*| O_DIRECT*/);
+    auto file = lfs->open(fn_rsa, O_RDONLY /*| O_DIRECT*/);
     auto faligned_dst = file;
     // auto faligned_dst = new_aligned_file_adaptor(file, ALIGNMENT_4K, true);
-    IFile *flz4 = zfile_open_ro(faligned_dst, /*verify=*/true, false);
-    EXPECT_EQ(is_zfile(faligned_dst), 1);
-    DEFER(flz4->close());
+    IFile *frsa = efile_open_ro(faligned_dst, /*verify=*/true, false);
+    EXPECT_EQ(is_efile(faligned_dst), 1);
+    DEFER(frsa->close());
     seqread(fsrc.get(), frsa);
     randread(fsrc.get(), frsa);
-}
-
-TEST_F(EFileTest, verify_compression) {
-    // log_output_level = 1;
-    auto fn_src = "verify.data";
-    auto fn_rsa = "verify.ersa";
-    auto fn_dec = "verify.data.0";
-    auto src = lfs->open(fn_src, O_CREAT | O_TRUNC | O_RDWR /*| O_DIRECT */, 0644);
-    auto dst = lfs->open(fn_rsa, O_CREAT | O_TRUNC | O_RDWR /*| O_DIRECT */, 0644);
-    auto dec = lfs->open(fn_dec, O_CREAT | O_TRUNC | O_RDWR /*| O_DIRECT */, 0644);
-    unique_ptr<IFile> fsrc(src);
-    unique_ptr<IFile> fdst(dst);
-    unique_ptr<IFile> fdec(dec);
-    if (!fsrc || !fdst || !fdec) {
-        LOG_ERROR("err: `(`)", errno, strerror(errno));
-    }
-    randwrite(fsrc.get(), write_times);
-    CompressOptions opt;
-    CompressArgs args(opt);
-    efile_encrypt(fsrc.get(), nullptr, &args);
-    int ret = efile_encrypt(fsrc.get(), fdst.get(), &args);
-    EXPECT_EQ(ret, 0);
-    ret = efile_decrypt(fdst.get(), fdec.get());
-    EXPECT_EQ(ret, 0);
-    // int read_times = 100000;
-    EXPECT_EQ(is_efile(fdec.get()), 0);
-    LOG_INFO("start seqread.");
-    struct stat _st;
-    if (fsrc->fstat(&_st) != 0) {
-        LOG_ERROR("err: `(`)", errno, strerror(errno));
-        return;
-    }
-    auto size = _st.st_size;
-    char data0[16384]{}, data1[16384]{};
-    for (auto i = 0; i < size; i += sizeof(data0)) {
-        fsrc->pread(data0, sizeof(data0), i);
-        fdec->pread(data1, sizeof(data1), i);
-        if (memcmp(data0, data1, sizeof(data0)) != 0) {
-            LOG_ERROR("verify failed.");
-            return;
-        }
-    }
 }
 
 int main(int argc, char **argv) {

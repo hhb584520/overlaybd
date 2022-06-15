@@ -36,6 +36,7 @@ extern bool io_test;
 #include "../index.cpp"
 #include "../file.cpp"
 #include "../../zfile/zfile.h"
+#include "../../efile/efile.h"
 
 #include "../../../photon/thread11.h"
 #include "../../../uuid.h"

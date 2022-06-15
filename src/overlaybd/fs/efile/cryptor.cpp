@@ -83,13 +83,13 @@ public:
         return 0;
     }
 
-    int encrypt(KeyHandle *hk, const unsigned char *src, size_t src_len, unsigned char *dst,
+    int encrypt(KeyHandle *hk, const unsigned char *src, size_t src_len, unsigned short int *dst,
                  size_t dst_len) override {
         if (dst_len < max_dst_size) {
             LOG_ERROR_RETURN(ENOBUFS, -1, "dst_len should be greater than `", max_dst_size - 1);
         }
 
-        auto ret = RSA_encrypt((const char *)src, (char *)dst, src_len, dst_len);
+        auto ret = RSA_encrypt(hk, (const unsigned char *)src, (unsigned short int *)dst, src_len, dst_len);
         if (ret < 0) {
             LOG_ERROR_RETURN(EFAULT, -1, "RSA encrypt data failed. (retcode: `).", ret);
         }
@@ -101,13 +101,13 @@ public:
         return ret;
     }
 
-    int decrypt(KeyHandle *hk, const unsigned char *src, size_t src_len, unsigned char *dst,
+    int decrypt(KeyHandle *hk, const unsigned short int *src, size_t src_len, unsigned char *dst,
                    size_t dst_len) override {
         if (dst_len < src_blk_size) {
             LOG_ERROR_RETURN(0, -1, "dst_len (`) should be greater than encrypted block size `",
                              dst_len, src_blk_size);
         }
-        auto ret = RSA_decrypt((const char *)src, (char *)dst, src_len, dst_len);
+        auto ret = RSA_decrypt(hk, (unsigned char *)dst, (const unsigned short int *)src, dst_len, src_len);
         if (ret < 0) {
             LOG_ERROR_RETURN(EFAULT, -1, "RSA decrypt data failed. (retcode: `)", ret);
         }

@@ -88,7 +88,7 @@ public:
     virtual int encrypt(KeyHandle *hk,
                         const unsigned char *src,
                         size_t src_len,
-                        unsigned char *dst,
+                        unsigned short int *dst,
                         size_t dst_len) = 0;
 
     /*
@@ -96,7 +96,7 @@ public:
         return -1 when error occurred.
     */
     virtual int decrypt(KeyHandle *hk,
-                        const unsigned char *src,
+                        const unsigned short int *src,
                         size_t src_len,
                         unsigned char *dst,
                         size_t dst_len) = 0;
