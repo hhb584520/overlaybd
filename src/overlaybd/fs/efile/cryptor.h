@@ -28,6 +28,12 @@ class IFile;
 
 namespace EFile {
 
+struct Credential {
+    i16_t e;
+    i16_t d;
+    i16_t n;
+};
+
 /* CryptOptions will write into file */
 class CryptOptions {
 public:
@@ -65,13 +71,7 @@ public:
 class ICryptor {
 public:
     virtual ~ICryptor(){};
-
-    /*
-        return Provider type.
-        return -1 when error occurred.
-    */
-    virtual int getProviderType(int *type) = 0;
-                        
+                       
     /*
      * SWK: user key
      * hk: key handle
@@ -79,14 +79,13 @@ public:
      *  success return 0.
         return -1 when error occurred.
     */
-    virtual int loadKey(Cpa8U *SWK, KeyHandle *hk) = 0;
+    virtual int loadKey(Cpa8U *SWK) = 0;
 
     /*
         return encrypted buffer size.
         return -1 when error occurred.
     */
-    virtual int encrypt(KeyHandle *hk,
-                        const unsigned char *src,
+    virtual int encrypt(const unsigned char *src,
                         size_t src_len,
                         unsigned short int *dst,
                         size_t dst_len) = 0;
@@ -95,8 +94,7 @@ public:
         return decrypted buffer size.
         return -1 when error occurred.
     */
-    virtual int decrypt(KeyHandle *hk,
-                        const unsigned short int *src,
+    virtual int decrypt(const unsigned short int *src,
                         size_t src_len,
                         unsigned char *dst,
                         size_t dst_len) = 0;

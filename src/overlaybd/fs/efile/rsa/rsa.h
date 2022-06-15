@@ -40,10 +40,14 @@ extern "C" {
 #define RSA_H_2983827168210
 
 #include <stdint.h>
+#include <stdlib.h>
+#include <stdbool.h>
+#include <sys/types.h>
+#include <unistd.h>
 
 typedef unsigned char Cpa8U;
 typedef unsigned long int Cpa32U;
-typedef unsigned long int KeyHandle;
+typedef void * KeyHandle;
 typedef void * CpaInstanceHandle;
 
 
@@ -59,6 +63,12 @@ typedef uint16_t i16_t;
 
 /* Unsigned 8 bit integer */
 typedef uint8_t  i8_t;
+
+typedef struct _RsaKey {
+    i16_t e;
+    i16_t d;
+    i16_t n;
+} RsaKey;
 
 typedef struct _CpaFlatBuffer {
     Cpa32U dataLenInBytes;
@@ -103,11 +113,11 @@ typedef struct CpaCyLoadKey_t {
 } CpaCyLoadKey;
 
 int RSA_cryptBound(int isize);
-int RSA_encrypt(KeyHandle *hk, const i8_t *plaintext, i16_t *ciphertext, int inputSize, int maxOutputSize);
-int RSA_decrypt(KeyHandle *hk, i8_t *plaintext, const i16_t *ciphertext, int inputSize, int maxOutputSize);
+int RSA_encrypt(KeyHandle hk, const i8_t *plaintext, i16_t *ciphertext, int inputSize, int maxOutputSize);
+int RSA_decrypt(KeyHandle hk, i8_t *plaintext, const i16_t *ciphertext, int inputSize, int maxOutputSize);
 
-int RSA_generateKeyPair();
-int RSA_loadKey(CpaCyRsaPublicKey publicKey, Cpa8U *SWK, KeyHandle *hk);
+int RSA_generateKeyPair(i16_t *p_e, i16_t *p_d, i16_t *p_n);
+int RSA_loadKey(CpaCyRsaPublicKey publicKey, Cpa8U *SWK, KeyHandle hk);
 
 
 

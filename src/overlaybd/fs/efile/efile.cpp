@@ -414,12 +414,12 @@ public:
         unsigned char raw[MAX_READ_SIZE];
         for (auto &block : BlockReader(this, offset, count)) {
             if (block.cp_len == m_ht.opt.block_size) {
-                auto dret = m_cryptor->decrypt(hk, block.buffer(), block.encrypted_size,
+                auto dret = m_cryptor->decrypt(block.buffer(), block.encrypted_size,
                                                (unsigned char *)buf, m_ht.opt.block_size);
                 if (dret == -1)
                     return -1;
             } else {
-                auto dret = m_cryptor->decrypt(hk, block.buffer(), block.encrypted_size, raw,
+                auto dret = m_cryptor->decrypt(block.buffer(), block.encrypted_size, raw,
                                                m_ht.opt.block_size);
                 if (dret == -1)
                     return -1;
@@ -441,7 +441,7 @@ size_t encrypt_data(ICryptor *cryptor, const unsigned char *buf, size_t count,
 
     KeyHandle *hk;
     size_t encrypted_len = 0;
-    auto ret = cryptor->encrypt(hk, (const unsigned char *)buf, count, dest_buf, dest_len);
+    auto ret = cryptor->encrypt((const unsigned char *)buf, count, dest_buf, dest_len);
     if (ret <= 0) {
         LOG_ERRNO_RETURN(0, -1, "encrypt data failed.");
     }

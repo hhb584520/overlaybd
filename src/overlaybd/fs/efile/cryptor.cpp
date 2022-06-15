@@ -27,12 +27,24 @@ private:
     int getPuk(CpaInstanceHandle cyInstHandle) {
         return 0;
     }
+
+    int checkRSA() {
+        return 0;
+    }
 public:
     uint32_t max_dst_size = 0;
     uint32_t src_blk_size = 0;
+    KeyHandle hk = NULL;
 
     int init(const CryptArgs *args) {
         int ret = 0;
+        Credential key;
+
+        // check if RSA is ready
+        ret = checkRSA();
+        if (ret != 0) {
+            LOG_ERROR_RETURN(EINVAL, -1, "RSA software is not ready.");
+        } 
 
         auto opt = &args->opt;
         if (opt == nullptr) {
@@ -46,16 +58,12 @@ public:
         max_dst_size = RSA_cryptBound(src_blk_size);
 
         // step1：Generate key-pair and store it.
-        ret = RSA_generateKeyPair();
+        ret = RSA_generateKeyPair(&(key.e), &(key.d), &(key.n));
         if (ret != 0) {
             LOG_ERROR_RETURN(EINVAL, -1, "generate Key pair fail.");
         }
 
-        return 0;
-    }
-
-    int getProviderType(int *type) {
-        *type = ProviderType::CPU;
+        hk = (KeyHandle)&key;
 
         return 0;
     }
@@ -64,7 +72,7 @@ public:
      * SWK: user key
      * hk: key handle
      */
-    int loadKey(Cpa8U *SWK, KeyHandle *hk) {
+    int loadKey(Cpa8U *SWK) {
         int ret = 0;
         CpaCyRsaPublicKey publicKey;
         CpaInstanceHandle cyInstHandle;
@@ -83,7 +91,7 @@ public:
         return 0;
     }
 
-    int encrypt(KeyHandle *hk, const unsigned char *src, size_t src_len, unsigned short int *dst,
+    int encrypt(const unsigned char *src, size_t src_len, unsigned short int *dst,
                  size_t dst_len) override {
         if (dst_len < max_dst_size) {
             LOG_ERROR_RETURN(ENOBUFS, -1, "dst_len should be greater than `", max_dst_size - 1);
@@ -101,7 +109,7 @@ public:
         return ret;
     }
 
-    int decrypt(KeyHandle *hk, const unsigned short int *src, size_t src_len, unsigned char *dst,
+    int decrypt(const unsigned short int *src, size_t src_len, unsigned char *dst,
                    size_t dst_len) override {
         if (dst_len < src_blk_size) {
             LOG_ERROR_RETURN(0, -1, "dst_len (`) should be greater than encrypted block size `",
@@ -123,6 +131,8 @@ ICryptor *create_cryptor(const CryptArgs *args) {
     ICryptor *rst = nullptr;
     int init_flg = 0;
     const CryptOptions &opt = args->opt;
+
+    // TBD: read multiple type, use for loop to traverse it.
     switch (opt.type) {
 
     case CryptOptions::RSA:
