@@ -1,6 +1,7 @@
 add_subdirectory(registryfs)
 add_subdirectory(lsmt)
 add_subdirectory(zfile)
+add_subdirectory(efile)
 add_subdirectory(cache)
 
 file(GLOB SOURCE_OBD "*.cpp")
@@ -13,5 +14,6 @@ target_link_libraries(overlaybd_lib
     registryfs_lib
     lsmt_lib
     zfile_lib
+    efile_lib
     cache_lib
 )
