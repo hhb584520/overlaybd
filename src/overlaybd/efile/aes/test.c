@@ -1,5 +1,5 @@
 /* Includes, for Power! */
-#include "rsa.h" // This is all that is required to expose the prototypes for basic compression and decompression.
+#include "aes.h" // This is all that is required to expose the prototypes for basic compression and decompression.
 #include <stdio.h>  // For printf()
 #include <string.h> // For memcmp()
 #include <stdlib.h> // For exit()
@@ -26,7 +26,7 @@ int main(int argc, char *argv[]) {
     printf("\n");
 
     /* Encrypt the message */
-    RSA_encrypt(hk, original_plaintext, ciphertext, msg_sz, msg_sz);
+    AES_encrypt(hk, original_plaintext, ciphertext, msg_sz, msg_sz);
 
     for (int i = 0; i < msg_sz; i++) {
         printf("%u", ciphertext[i]);
@@ -34,7 +34,7 @@ int main(int argc, char *argv[]) {
     printf("\n");
 
     /* Decrypt the message */
-    RSA_decrypt(hk, decrypt_plaintext, ciphertext, msg_sz, msg_sz);
+    AES_decrypt(hk, decrypt_plaintext, ciphertext, msg_sz, msg_sz);
 
     /* Print the plaintext */
     for (int i = 0; i < msg_sz; i++) {

@@ -26,13 +26,13 @@
     - RSA homepage : 
     - RSA source repository : 
 */
-#include "rsa.h"
+#include "aes.h"
 
-#define RSA_MAX_INPUT_SIZE        0x7E000000   /* 2 113 929 216 bytes */
+#define AES_MAX_INPUT_SIZE        0x7E000000   /* 2 113 929 216 bytes */
 
-int RSA_cryptBound(int isize) {
+int AES_cryptBound(int isize) {
 
-    if ((unsigned)isize > (unsigned)RSA_MAX_INPUT_SIZE) {
+    if ((unsigned)isize > (unsigned)AES_MAX_INPUT_SIZE) {
         return 0;
     }
     else {
@@ -70,7 +70,7 @@ i16_t mod_exp(i16_t a, i16_t b, i16_t m) {
     return ans;
 }
 
-int RSA_encrypt(KeyHandle hk, const i8_t *plaintext, i16_t *ciphertext, int inputSize, int maxOutputSize) {
+int AES_encrypt(KeyHandle hk, const i8_t *plaintext, i16_t *ciphertext, int inputSize, int maxOutputSize) {
     RsaKey *kRsa = (RsaKey *)hk;
     unsigned int e = 6239;//kRsa->e;
     unsigned int n = 34393;//kRsa->n;
@@ -86,7 +86,7 @@ int RSA_encrypt(KeyHandle hk, const i8_t *plaintext, i16_t *ciphertext, int inpu
     return len;
 }
 
-int RSA_decrypt(KeyHandle hk, i8_t *plaintext, const i16_t *ciphertext, int inputSize, int maxOutputSize) {
+int AES_decrypt(KeyHandle hk, i8_t *plaintext, const i16_t *ciphertext, int inputSize, int maxOutputSize) {
     RsaKey *kRsa = (RsaKey *)hk;
     unsigned int d = 3119;//kRsa->d;
     unsigned int n = 34393;//kRsa->n;
@@ -249,11 +249,11 @@ void rsa_key_gen(i16_t *p_e, i16_t *p_d, i16_t *p_n) {
     *p_n = n;
 }
 
-int RSA_generateKeyPair(i16_t *p_e, i16_t *p_d, i16_t *p_n) {
+int AES_generateKeyPair(i16_t *p_e, i16_t *p_d, i16_t *p_n) {
     rsa_key_gen(p_e, p_e, p_e);
     return 0;
 }
 
-int RSA_loadKey(CpaCyRsaPublicKey publicKey, Cpa8U *SWK, KeyHandle hk) {
+int AES_loadKey(CpaCyAesPublicKey publicKey, Cpa8U *SWK, KeyHandle hk) {
     return 0;
 }

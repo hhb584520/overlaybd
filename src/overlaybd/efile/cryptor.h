@@ -20,7 +20,7 @@
 #include <cstdlib>
 #include <cstdint>
 #include <memory>
-#include "rsa/rsa.h"
+#include "aes/aes.h"
 
 namespace photon {
     namespace fs {
@@ -39,17 +39,17 @@ struct Credential {
 /* CryptOptions will write into file */
 class CryptOptions {
 public:
-    const static uint8_t RSA = 0;
+    const static uint8_t AES = 0;
     const static uint32_t DEFAULT_BLOCK_SIZE = 4096; // 8192;//32768;
 
     uint32_t block_size = DEFAULT_BLOCK_SIZE;
-    uint8_t type = RSA; // algorithm
+    uint8_t type = AES; // algorithm
     uint8_t use_dict = 0;
     uint32_t args = 0; // reserve;
     uint32_t dict_size = 0;
     uint8_t verify = 0;
 
-    CryptOptions(uint8_t type = RSA, uint32_t block_size = DEFAULT_BLOCK_SIZE,
+    CryptOptions(uint8_t type = AES, uint32_t block_size = DEFAULT_BLOCK_SIZE,
                     uint8_t verify = 0)
         : block_size(block_size), type(type), verify(verify) {
     }

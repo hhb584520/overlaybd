@@ -1,7 +1,7 @@
 file(GLOB SOURCE_EFILE "*.cpp")
-file(GLOB SOURCE_RSA "rsa/rsa.c")
+file(GLOB SOURCE_AES "aes/aes.c")
 
-add_library(efile_lib STATIC ${SOURCE_EFILE} ${SOURCE_RSA})
+add_library(efile_lib STATIC ${SOURCE_EFILE} ${SOURCE_AES})
 target_link_libraries(efile_lib photon_static)
 target_compile_options(efile_lib PUBLIC -msse4.2)
 

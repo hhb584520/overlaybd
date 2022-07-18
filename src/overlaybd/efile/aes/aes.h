@@ -36,8 +36,8 @@
 extern "C" {
 #endif
 
-#ifndef RSA_H_2983827168210
-#define RSA_H_2983827168210
+#ifndef AES_H_2983827168210
+#define AES_H_2983827168210
 
 #include <stdint.h>
 #include <stdlib.h>
@@ -85,7 +85,7 @@ typedef struct _CpaFlatBuffer {
      requiresPhysicallyContiguousMemory in CpaInstanceInfo2 is false. */
 } CpaFlatBuffer;
 
-typedef struct _CpaCyRsaPublicKey {
+typedef struct _CpaCyAesPublicKey {
     CpaFlatBuffer modulusN;
     /**< The modulus (n).
      * For key generation operations, the client MUST allocate the memory
@@ -99,7 +99,7 @@ typedef struct _CpaCyRsaPublicKey {
      * the CpaCyRsaKeyGenOpData structure before using the key for
      * encryption.
      * For encrypt operations this parameter is an input. */
-} CpaCyRsaPublicKey;
+} CpaCyAesPublicKey;
 
 typedef enum CpaCyKptWrappingKeyType_t {
     CPA_CY_KPT_WRAPPING_KEY_TYPE_AES256_GCM = 0
@@ -112,16 +112,16 @@ typedef struct CpaCyLoadKey_t {
     /**< Symmetric wrapping algorithm*/
 } CpaCyLoadKey;
 
-int RSA_cryptBound(int isize);
-int RSA_encrypt(KeyHandle hk, const i8_t *plaintext, i16_t *ciphertext, int inputSize, int maxOutputSize);
-int RSA_decrypt(KeyHandle hk, i8_t *plaintext, const i16_t *ciphertext, int inputSize, int maxOutputSize);
+int AES_cryptBound(int isize);
+int AES_encrypt(KeyHandle hk, const i8_t *plaintext, i16_t *ciphertext, int inputSize, int maxOutputSize);
+int AES_decrypt(KeyHandle hk, i8_t *plaintext, const i16_t *ciphertext, int inputSize, int maxOutputSize);
 
-int RSA_generateKeyPair(i16_t *p_e, i16_t *p_d, i16_t *p_n);
-int RSA_loadKey(CpaCyRsaPublicKey publicKey, Cpa8U *SWK, KeyHandle hk);
+int AES_generateKeyPair(i16_t *p_e, i16_t *p_d, i16_t *p_n);
+int AES_loadKey(CpaCyAesPublicKey publicKey, Cpa8U *SWK, KeyHandle hk);
 
 
 
-#endif /* RSA_H_2983827168210 */
+#endif /* AES_H_2983827168210 */
 
 
 #if defined (__cplusplus)
