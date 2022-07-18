@@ -1,37 +1,3 @@
-/*
- *  RSA - 
- *  Header File
- *  Copyright (C) 2011-present, Yann Collet.
-
-   BSD 2-Clause License (http://www.opensource.org/licenses/bsd-license.php)
-
-   Redistribution and use in source and binary forms, with or without
-   modification, are permitted provided that the following conditions are
-   met:
-
-       * Redistributions of source code must retain the above copyright
-   notice, this list of conditions and the following disclaimer.
-       * Redistributions in binary form must reproduce the above
-   copyright notice, this list of conditions and the following disclaimer
-   in the documentation and/or other materials provided with the
-   distribution.
-
-   THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
-   "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
-   LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
-   A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
-   OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
-   SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
-   LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
-   DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
-   THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
-   (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
-   OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
-
-   You can contact the author at :
-    - RSA homepage : 
-    - RSA source repository : 
-*/
 #if defined (__cplusplus)
 extern "C" {
 #endif
@@ -50,25 +16,21 @@ typedef unsigned long int Cpa32U;
 typedef void * KeyHandle;
 typedef void * CpaInstanceHandle;
 
-
-
 /* Unsigned 64 bit integer */
 typedef uint64_t i64_t;
 
 /* Unsigned 32 bit integer */
-typedef uint32_t i32_t;
+//typedef uint32_t i32_t;
 
 /* Unsigned 16 bit integer */
 typedef uint16_t i16_t;
 
 /* Unsigned 8 bit integer */
-typedef uint8_t  i8_t;
+typedef uint8_t i8_t;
 
-typedef struct _RsaKey {
-    i16_t e;
-    i16_t d;
-    i16_t n;
-} RsaKey;
+typedef struct _AesKey {
+    char *skey;
+} AesKey;
 
 typedef struct _CpaFlatBuffer {
     Cpa32U dataLenInBytes;
@@ -113,13 +75,28 @@ typedef struct CpaCyLoadKey_t {
 } CpaCyLoadKey;
 
 int AES_cryptBound(int isize);
-int AES_encrypt(KeyHandle hk, const i8_t *plaintext, i16_t *ciphertext, int inputSize, int maxOutputSize);
-int AES_decrypt(KeyHandle hk, i8_t *plaintext, const i16_t *ciphertext, int inputSize, int maxOutputSize);
 
-int AES_generateKeyPair(i16_t *p_e, i16_t *p_d, i16_t *p_n);
-int AES_loadKey(CpaCyAesPublicKey publicKey, Cpa8U *SWK, KeyHandle hk);
+/**
+ * hk: key handle, we can get key by this key handle
+ * plain: plain text
+ * cipher: cipher text
+ * plen: plain text len
+ * clen: cipher text len
+ */
+int AES_encrypt(KeyHandle hk, const unsigned char *plain, unsigned char *cipher, int plen, int clen);
 
+/**
+ * hk: key handle, we can get key by this key handle
+ * cipher: cipher text
+ * plain: plain text
+ * clen: cipher text len
+ * plen: plain text len
+ */
+int AES_decrypt(KeyHandle hk, const unsigned char *cipher, unsigned char *plain, int clen, int plen);
 
+int AES_generateKey(AesKey *aeskey);
+
+int AES_loadKey(CpaCyAesPublicKey publicKey, AesKey *aeskey, KeyHandle *hk);
 
 #endif /* AES_H_2983827168210 */
 

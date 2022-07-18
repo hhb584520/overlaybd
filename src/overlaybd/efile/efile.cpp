@@ -323,7 +323,7 @@ public:
                 return *this;
             };
 
-            const unsigned short int *buffer() const {
+            const unsigned char *buffer() const {
                 return (m_reader->m_buf + m_reader->m_buf_offset);
             }
 
@@ -395,7 +395,7 @@ public:
         off_t m_end = 0;
         uint8_t m_verify = 0;
         uint32_t m_block_size = 0;
-        unsigned short int m_buf[MAX_READ_SIZE]; //{};
+        unsigned char m_buf[MAX_READ_SIZE]; //{};
     };
 
     virtual ssize_t pread(void *buf, size_t count, off_t offset) override {
@@ -438,7 +438,7 @@ static int write_header_trailer(IFile *file, bool is_header, bool is_sealed, boo
                                 EncryptionFile::HeaderTrailer *pht, off_t offset = -1);
 
 size_t encrypt_data(ICryptor *cryptor, const unsigned char *buf, size_t count,
-                     unsigned short int *dest_buf, size_t dest_len, bool gen_crc) {
+                     unsigned char *dest_buf, size_t dest_len, bool gen_crc) {
 
     KeyHandle *hk;
     size_t encrypted_len = 0;
@@ -475,7 +475,7 @@ public:
         moffset = EncryptionFile::HeaderTrailer::SPACE + 0; // opt.dict_size;
                                                        // currently dictionary is not supported.
         m_buf_size = m_opt.block_size + BUF_SIZE;
-        encrypted_data = new unsigned short int[m_buf_size];
+        encrypted_data = new unsigned char[m_buf_size];
         reserved_buf = new unsigned char[m_buf_size];
         return 0;
     }
@@ -577,7 +577,7 @@ public:
     ICryptor *m_cryptor = nullptr;
     bool m_ownership = false;
     std::vector<uint32_t> m_block_len;
-    unsigned short int *encrypted_data = nullptr;
+    unsigned char *encrypted_data = nullptr;
     unsigned char *reserved_buf = nullptr;
     size_t reserved_size = 0;
     EncryptionFile::HeaderTrailer m_ht[EncryptionFile::HeaderTrailer::SPACE]{};
@@ -739,7 +739,7 @@ int efile_encrypt(IFile *file, IFile *as, const CryptArgs *args) {
     auto block_size = opt.block_size;
     auto buf_size = block_size + BUF_SIZE;
     auto raw_data = std::unique_ptr<unsigned char[]>(new unsigned char[buf_size]);
-    auto encrypted_data = std::unique_ptr<unsigned short int[]>(new unsigned short int[buf_size]);
+    auto encrypted_data = std::unique_ptr<unsigned char[]>(new unsigned char[buf_size]);
     std::vector<uint32_t> block_len{};
     uint64_t moffset = EncryptionFile::HeaderTrailer::SPACE + opt.dict_size;
     LOG_INFO("encrypt start....");

@@ -38,7 +38,7 @@ public:
 
     int init(const CryptArgs *args) {
         int ret = 0;
-        Credential key;
+        char SWK[17] = "5678123490897809";
 
         // check if AES is ready
         ret = checkAES();
@@ -57,13 +57,7 @@ public:
         src_blk_size = opt->block_size;
         max_dst_size = AES_cryptBound(src_blk_size);
 
-        // step1：Generate key-pair and store it.
-        ret = AES_generateKeyPair(&(key.e), &(key.d), &(key.n));
-        if (ret != 0) {
-            LOG_ERROR_RETURN(EINVAL, -1, "generate Key pair fail.");
-        }
-
-        hk = (KeyHandle)&key;
+        loadKey(SWK);
 
         return 0;
     }
@@ -72,7 +66,7 @@ public:
      * SWK: user key
      * hk: key handle
      */
-    int loadKey(Cpa8U *SWK) {
+    int loadKey(char *SWK) {
         int ret = 0;
         CpaCyAesPublicKey publicKey;
         CpaInstanceHandle cyInstHandle;
@@ -83,7 +77,9 @@ public:
         }
         // TBD from cyInstHandle get public key.
         // step2: Use the public key to encrypt SWK return key handle.
-        ret = AES_loadKey(publicKey, SWK, hk);
+        AesKey aeskey;
+        aeskey.skey = SWK; 
+        ret = AES_loadKey(publicKey, &aeskey, &hk);
         if (ret != 0) {
             LOG_ERROR_RETURN(EINVAL, -1, "Load Key fail.");
         }
@@ -91,13 +87,13 @@ public:
         return 0;
     }
 
-    int encrypt(const unsigned char *src, size_t src_len, unsigned short int *dst,
+    int encrypt(const unsigned char *src, size_t src_len, unsigned char *dst,
                  size_t dst_len) override {
         if (dst_len < max_dst_size) {
             LOG_ERROR_RETURN(ENOBUFS, -1, "dst_len should be greater than `", max_dst_size - 1);
         }
 
-        auto ret = AES_encrypt(hk, (const unsigned char *)src, (unsigned short int *)dst, src_len, dst_len);
+        auto ret = AES_encrypt(hk, (const unsigned char *)src, (unsigned char *)dst, src_len, dst_len);
         if (ret < 0) {
             LOG_ERROR_RETURN(EFAULT, -1, "AES encrypt data failed. (retcode: `).", ret);
         }
@@ -109,13 +105,13 @@ public:
         return ret;
     }
 
-    int decrypt(const unsigned short int *src, size_t src_len, unsigned char *dst,
+    int decrypt(const unsigned char *src, size_t src_len, unsigned char *dst,
                    size_t dst_len) override {
         if (dst_len < src_blk_size) {
             LOG_ERROR_RETURN(0, -1, "dst_len (`) should be greater than encrypted block size `",
                              dst_len, src_blk_size);
         }
-        auto ret = AES_decrypt(hk, (unsigned char *)dst, (const unsigned short int *)src, dst_len, src_len);
+        auto ret = AES_decrypt(hk, (const unsigned char *)src, (unsigned char *)dst, dst_len, src_len);
         if (ret < 0) {
             LOG_ERROR_RETURN(EFAULT, -1, "AES decrypt data failed. (retcode: `)", ret);
         }

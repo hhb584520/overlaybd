@@ -81,7 +81,7 @@ public:
      *  success return 0.
         return -1 when error occurred.
     */
-    virtual int loadKey(Cpa8U *SWK) = 0;
+    virtual int loadKey(char *SWK) = 0;
 
     /*
         return encrypted buffer size.
@@ -89,14 +89,14 @@ public:
     */
     virtual int encrypt(const unsigned char *src,
                         size_t src_len,
-                        unsigned short int *dst,
+                        unsigned char *dst,
                         size_t dst_len) = 0;
 
     /*
         return decrypted buffer size.
         return -1 when error occurred.
     */
-    virtual int decrypt(const unsigned short int *src,
+    virtual int decrypt(const unsigned char *src,
                         size_t src_len,
                         unsigned char *dst,
                         size_t dst_len) = 0;
