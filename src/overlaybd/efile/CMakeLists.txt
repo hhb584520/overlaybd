@@ -1,7 +1,7 @@
 file(GLOB SOURCE_EFILE "*.cpp")
-file(GLOB SOURCE_AES "aes/aes.c")
+file(GLOB SOURCE_PLUGIN "plugin/*.cpp")
 
-add_library(efile_lib STATIC ${SOURCE_EFILE} ${SOURCE_AES})
+add_library(efile_lib STATIC ${SOURCE_EFILE} ${SOURCE_PLUGIN})
 target_link_libraries(efile_lib photon_static)
 target_compile_options(efile_lib PUBLIC -msse4.2)
 

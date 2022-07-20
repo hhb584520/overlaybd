@@ -19,15 +19,16 @@
 namespace EFile {
 const static size_t MAX_READ_SIZE = 65536; // 64K
 
-extern "C" photon::fs::IFile *efile_open_ro(photon::fs::IFile *file, bool verify = false,
+extern "C" photon::fs::IFile *efile_open_ro(photon::fs::IFile *file, CryptOptions *popt, bool verify = false,
                                             bool ownership = false);
 
 extern "C" int efile_encrypt(photon::fs::IFile *src_file, photon::fs::IFile *dst_file,
                               const CryptArgs *opt = nullptr);
 
-extern "C" int efile_decrypt(photon::fs::IFile *src_file, photon::fs::IFile *dst_file);
+extern "C" int efile_decrypt(photon::fs::IFile *src_file, photon::fs::IFile *dst_file,
+                              const CryptArgs *args);
 
-extern "C" photon::fs::IFile *new_zfile_builder(photon::fs::IFile *file,
+extern "C" photon::fs::IFile *new_efile_builder(photon::fs::IFile *file,
                                                 const CryptArgs *args = nullptr,
                                                 bool ownership = false);
 

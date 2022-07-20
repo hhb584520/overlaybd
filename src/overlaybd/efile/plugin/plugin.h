@@ -13,14 +13,14 @@
    See the License for the specific language governing permissions and
    limitations under the License.
 */
-#ifndef __CRYPTOR_H__
-#define __CRYPTOR_H__
+#ifndef __PLUGIN_H__
+#define __PLUGIN_H__
 
-#include <cstdio>
-#include <cstdlib>
-#include <cstdint>
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
 #include <memory>
-#include "plugin/plugin.h"
+#include "software.h"
 
 namespace photon {
     namespace fs {
@@ -31,7 +31,7 @@ namespace photon {
 namespace EFile {
 
 /* CryptOptions will write into file */
-class CryptOptions {
+class PluginOptions {
 public:
     const static uint8_t AES = 0;
     const static uint8_t BlowFish = 1;
@@ -43,24 +43,21 @@ public:
     uint8_t use_dict = 0;
     uint32_t args = 0; // reserve;
     uint32_t dict_size = 0;
-    uint8_t verify = 0;
-    char *puk_lek;
-    KeyHandle hk;
+    char *prk;
 
-    CryptOptions(uint8_t type = AES, uint32_t block_size = DEFAULT_BLOCK_SIZE,
-                    uint8_t verify = 0)
-        : block_size(block_size), type(type), verify(verify) {
+    PluginOptions(uint8_t type = AES, uint32_t block_size = DEFAULT_BLOCK_SIZE)
+        : block_size(block_size), type(type) {
     }
 };
 
-class CryptArgs {
+class PluginArgs {
 public:
     photon::fs::IFile *fdict = nullptr;
     char *prk;
     std::unique_ptr<unsigned char[]> dict_buf = nullptr;
-    CryptOptions opt;
+    PluginOptions opt;
 
-    CryptArgs(const CryptOptions &opt, photon::fs::IFile *dict = nullptr,
+    PluginArgs(const PluginOptions &opt, photon::fs::IFile *dict = nullptr,
                  unsigned char *dict_buf = nullptr)
         : fdict(dict), dict_buf(dict_buf), opt(opt) {
         if (fdict || dict_buf) {
@@ -69,12 +66,12 @@ public:
     };
 };
 
-class ICryptor {
+class IPlugin {
 public:
-    virtual ~ICryptor(){};
+    virtual ~IPlugin(){};
                        
     /*
-     * SWK: user key
+     * SWK: puk_lek
      * hk: key handle
      * 
      *  success return 0.
@@ -105,7 +102,7 @@ public:
 
 };
 
-extern "C" ICryptor *create_cryptor(const CryptArgs *args);
+extern "C" IPlugin *create_plugin(const PluginArgs *args);
 } // namespace EFile
 
 #endif

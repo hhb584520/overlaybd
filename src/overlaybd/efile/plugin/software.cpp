@@ -1,33 +1,7 @@
-#include "aes.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-
-#define AES_MAX_INPUT_SIZE        0x7E000000   /* 2 113 929 216 bytes */
-
-int AES_cryptBound(int isize) {
-
-    if ((unsigned)isize > (unsigned)AES_MAX_INPUT_SIZE) {
-        return 0;
-    }
-    else {
-        return ((isize) + ((isize)/255) + 16);
-    }
-}
-
-int AES_generateKey(AesKey *aeskey) {
-    strncpy(aeskey->skey, "5678123490897809", 17);
-
-    return 0;
-}
-
-int AES_loadKey(CpaCyAesPublicKey publicKey, AesKey *aeskey, KeyHandle *hk) {
- 
-    AES_generateKey(aeskey);
-
-    *hk = (KeyHandle *)aeskey;
-    return 0;
-}
+#include "software.h"
 
 /**
  * S盒
@@ -195,7 +169,7 @@ static int mergeArrayToInt(int array[4]) {
 /**
  * 常量轮值表
  */
-static const int Rcon[10] = { 0x01000000, 0x02000000,
+static const unsigned int Rcon[10] = { 0x01000000, 0x02000000,
     0x04000000, 0x08000000,
     0x10000000, 0x20000000,
     0x40000000, 0x80000000,
@@ -379,7 +353,7 @@ static void mixColumns(int array[4][4]) {
 /**
  * 把4X4数组转回字符串
  */
-static void convertArrayToStr(int array[4][4], char *str) {
+static void convertArrayToStr(int array[4][4], unsigned char *str) {
     for(int i = 0; i < 4; i++)
         for(int j = 0; j < 4; j++)
             *str++ = (char)array[j][i];
@@ -392,42 +366,6 @@ static int checkKeyLen(int len) {
         return 1;
     else
         return 0;
-}
-
-int AES_encrypt(KeyHandle hk, const unsigned char *plain, unsigned char *cipher, int plen, int clen) {
-    AesKey *kAes = (AesKey *)hk;
-    char *key = kAes->skey;
-    const unsigned char *src = (const unsigned char *)(plain);
-
-    if(plen == 0 || plen % 16 != 0) {
-        printf("The plaintext character length must be a multiple of 16.\n");
-        exit(0);
-    }
-
-    extendKey(key);//扩展密钥
-
-    int pArray[4][4];
-
-    for(int k = 0; k < plen; k += 16) {
-        src = (const unsigned char *)(plain+k);
-        convertToIntArray(src, pArray);
-        addRoundKey(pArray, 0);//一开始的轮密钥加
-        for(int i = 1; i < 10; i++) { //前9轮
-            subBytes(pArray);//字节代换
-            shiftRows(pArray);//行移位
-            mixColumns(pArray);//列混合
-            addRoundKey(pArray, i);
-        }
-
-        //第10轮
-        subBytes(pArray);//字节代换
-        shiftRows(pArray);//行移位
-        addRoundKey(pArray, 10);
-
-        convertArrayToStr(pArray, cipher + k);
-    }
-
-    return plen;
 }
 
 /**
@@ -537,37 +475,146 @@ static void getArrayFrom4W(int i, int array[4][4]) {
 
 }
 
-int AES_decrypt(KeyHandle hk, const unsigned char *cipher, unsigned char *plain, int clen, int plen) {
-    AesKey *kAes = (AesKey *)hk;
-    char *key = kAes->skey;
+namespace EFile {
 
-    if(clen == 0 || clen % 16 != 0) {
-        printf("The plaintext character length must be a multiple of 16.\n");
-        exit(0);
+class SoftwareAES : public ISoftware {
+private:
+    char *prk;
+
+public:
+    uint32_t max_dst_size = 0;
+    uint32_t src_blk_size = 0;
+    KeyHandle hk = NULL;
+
+    int init(const SoftwareArgs *args) {
+        int ret = 0;
+
+        prk = args->opt.prk;
+
+        return 0;
     }
 
-    extendKey(key);//扩展密钥
-    int cArray[4][4];
-    for(int k = 0; k < clen; k += 16) {
-        convertToIntArray(cipher + k, cArray);
+    /*
+     * SWK: user key
+     * hk: key handle
+     * load PUK{SWK}
+     */
+    int loadKey(char *puk_lek, KeyHandle *hk) {
+        int ret = 0;
+        CpaCyAesPublicKey publicKey;
+        CpaInstanceHandle cyInstHandle;
+        AESKey akey;
 
-        addRoundKey(cArray, 10);
-        int wArray[4][4];
-        for(int i = 9; i >= 1; i--) {
-            deSubBytes(cArray);
-            deShiftRows(cArray);
-            deMixColumns(cArray);
-            getArrayFrom4W(i, wArray);
-            deMixColumns(wArray);
-            addRoundTowArray(cArray, wArray);
+        akey.puk_lek = puk_lek;
+        *hk = (KeyHandle)&akey;
+
+        return 0;
+    }
+
+    int encrypt(KeyHandle hk,
+                const unsigned char *src, size_t src_len,
+                unsigned char *dst, size_t dst_len) override {
+        AESKey *pakey = (AESKey *)hk;
+        char *key = pakey->puk_lek;
+
+        // TBD to get LEK
+        // LEK "5678123490897809"
+        const unsigned char *src_tmp = (const unsigned char *)(src);
+
+        if(src_len == 0 || src_len % 16 != 0) {
+            printf("The plaintext character length must be a multiple of 16.\n");
+            exit(0);
         }
 
-        deSubBytes(cArray);
-        deShiftRows(cArray);
-        addRoundKey(cArray, 0);
+        extendKey(key);//扩展密钥
 
-        convertArrayToStr(cArray, plain + k);
+        int pArray[4][4];
+
+        for(int k = 0; k < src_len; k += 16) {
+            src = (const unsigned char *)(src_tmp+k);
+            convertToIntArray(src_tmp, pArray);
+            addRoundKey(pArray, 0);//一开始的轮密钥加
+            for(int i = 1; i < 10; i++) { //前9轮
+                subBytes(pArray);//字节代换
+                shiftRows(pArray);//行移位
+                mixColumns(pArray);//列混合
+                addRoundKey(pArray, i);
+            }
+
+            //第10轮
+            subBytes(pArray);//字节代换
+            shiftRows(pArray);//行移位
+            addRoundKey(pArray, 10);
+
+            convertArrayToStr(pArray, dst + k);
+        }
+
+        return dst_len;
     }
 
-    return clen;
+    int decrypt(KeyHandle hk, 
+                const unsigned char *src, size_t src_len,
+                unsigned char *dst, size_t dst_len) override {
+        AESKey *pakey = (AESKey *)hk;
+        char *key = pakey->puk_lek;
+
+        // TBD to get LEK 
+
+        if(src_len == 0 || src_len % 16 != 0) {
+            printf("The plaintext character length must be a multiple of 16.\n");
+            exit(0);
+        }
+
+        extendKey(key);//扩展密钥
+        int cArray[4][4];
+        for(int k = 0; k < src_len; k += 16) {
+            convertToIntArray(src + k, cArray);
+
+            addRoundKey(cArray, 10);
+            int wArray[4][4];
+            for(int i = 9; i >= 1; i--) {
+                deSubBytes(cArray);
+                deShiftRows(cArray);
+                deMixColumns(cArray);
+                getArrayFrom4W(i, wArray);
+                deMixColumns(wArray);
+                addRoundTowArray(cArray, wArray);
+            }
+
+            deSubBytes(cArray);
+            deShiftRows(cArray);
+            addRoundKey(cArray, 0);
+
+            convertArrayToStr(cArray, dst + k);
+    }
+
+    return dst_len;
 }
+};
+
+ISoftware *create_software(const SoftwareArgs *args) {
+    ISoftware *rst = nullptr;
+    int init_flg = 0;
+
+    switch (args->opt.type)
+    {
+    case SoftwareOptions::AES:
+        rst = new SoftwareAES;
+        if (rst != nullptr) {
+            init_flg = ((SoftwareAES *)rst)->init(args);
+        } 
+        /* code */
+        break;
+    
+    default:
+        break;
+    }
+
+    if (init_flg != 0) {
+        delete rst;
+        return nullptr;
+    }
+    return rst;
+}
+
+}; // namespace EFile

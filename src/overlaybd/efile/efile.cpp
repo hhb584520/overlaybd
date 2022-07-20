@@ -399,7 +399,6 @@ public:
     };
 
     virtual ssize_t pread(void *buf, size_t count, off_t offset) override {
-        KeyHandle *hk;
         if (!valid) {
             LOG_ERROR_RETURN(EBADF, -1, "object invalid.");
         }
@@ -415,18 +414,20 @@ public:
         unsigned char raw[MAX_READ_SIZE];
         for (auto &block : BlockReader(this, offset, count)) {
             if (block.cp_len == m_ht.opt.block_size) {
-                auto dret = m_cryptor->decrypt(block.buffer(), block.encrypted_size,
+                auto dret = m_cryptor->decrypt(m_ht.opt.hk, block.buffer(), block.encrypted_size,
                                                (unsigned char *)buf, m_ht.opt.block_size);
                 if (dret == -1)
                     return -1;
             } else {
-                auto dret = m_cryptor->decrypt(block.buffer(), block.encrypted_size, raw,
+                auto dret = m_cryptor->decrypt(m_ht.opt.hk, block.buffer(), block.encrypted_size, raw,
                                                m_ht.opt.block_size);
                 if (dret == -1)
                     return -1;
                 memcpy(buf, raw + block.cp_begin, block.cp_len);
             }
             readn += block.cp_len;
+            LOG_DEBUG("append buf, {offset: `, length: `}", (off_t)buf - (off_t)start_addr,
+                      block.cp_len);
             buf = (unsigned char *)buf + block.cp_len;
         }
         LOG_DEBUG("done. (readn: `)", readn);
@@ -437,12 +438,11 @@ public:
 static int write_header_trailer(IFile *file, bool is_header, bool is_sealed, bool is_data_file,
                                 EncryptionFile::HeaderTrailer *pht, off_t offset = -1);
 
-size_t encrypt_data(ICryptor *cryptor, const unsigned char *buf, size_t count,
+size_t encrypt_data(ICryptor *cryptor, KeyHandle hk, const unsigned char *buf, size_t count,
                      unsigned char *dest_buf, size_t dest_len, bool gen_crc) {
 
-    KeyHandle *hk;
     size_t encrypted_len = 0;
-    auto ret = cryptor->encrypt((const unsigned char *)buf, count, dest_buf, dest_len);
+    auto ret = cryptor->encrypt(hk, (const unsigned char *)buf, count, dest_buf, dest_len);
     if (ret <= 0) {
         LOG_ERRNO_RETURN(0, -1, "encrypt data failed.");
     }
@@ -481,8 +481,10 @@ public:
     }
 
     int write_buffer(const unsigned char *buf, size_t count) {
+        // TBD which is hk
+        KeyHandle hk = NULL;
         auto encrypted_len =
-            encrypt_data(m_cryptor, buf, count, encrypted_data, m_buf_size, m_opt.verify);
+            encrypt_data(m_cryptor, hk, buf, count, encrypted_data, m_buf_size, m_opt.verify);
         if (encrypted_len <= 0) {
             LOG_ERRNO_RETURN(EIO, -1, "encrypt buffer failed.");
         }
@@ -649,7 +651,8 @@ bool load_jump_table(IFile *file, EncryptionFile::HeaderTrailer *pheader_trailer
     return true;
 }
 
-IFile *efile_open_ro(IFile *file, bool verify, bool ownership) {
+IFile *efile_open_ro(IFile *file, CryptOptions *opt, bool verify, bool ownership) {
+    int ret = 0;
     if (!file) {
         LOG_ERRNO_RETURN(EINVAL, nullptr, "invalid file ptr. (NULL)");
     }
@@ -682,6 +685,16 @@ again:
     efile->m_cryptor.reset(create_cryptor(&args));
     efile->m_ownership = ownership;
     efile->valid = true;
+
+    // haibin TBD loadkey
+    ret = efile->m_cryptor->loadKey(opt->puk_lek, &(opt->hk));
+    if(ret != 0) {
+        LOG_ERRNO_RETURN(EIO, nullptr,
+                    "failed to read index for file: `, fallocate failed, no retry",
+                    file);
+    }
+    ht.opt.hk = opt->hk;
+
     return efile;
 }
 
@@ -711,6 +724,8 @@ static int write_header_trailer(IFile *file, bool is_header, bool is_sealed, boo
 }
 
 int efile_encrypt(IFile *file, IFile *as, const CryptArgs *args) {
+    int ret = 0;
+
     if (args == nullptr) {
         LOG_ERROR_RETURN(EINVAL, -1, "CryptArgs is null");
     }
@@ -721,6 +736,13 @@ int efile_encrypt(IFile *file, IFile *as, const CryptArgs *args) {
     LOG_INFO("create encrypt file. [ block size: `, type: `, enable_checksum: `]", opt.block_size,
              opt.type, opt.verify);
     auto cryptor = create_cryptor(args);
+
+    // haibin TBD loadkey
+    ret = cryptor->loadKey(opt.puk_lek, &(opt.hk));
+    if(ret != 0) {
+        LOG_ERRNO_RETURN(0, -1, "failed to load key"); 
+    }
+
     DEFER(delete cryptor);
     if (cryptor == nullptr)
         return -1;
@@ -729,7 +751,7 @@ int efile_encrypt(IFile *file, IFile *as, const CryptArgs *args) {
     pht->set_crypt_option(opt);
 
     LOG_INFO("write header.");
-    auto ret = write_header_trailer(as, true, false, true, pht);
+    ret = write_header_trailer(as, true, false, true, pht);
     if (ret < 0) {
         LOG_ERRNO_RETURN(0, -1, "failed to write header");
     }
@@ -749,7 +771,7 @@ int efile_encrypt(IFile *file, IFile *as, const CryptArgs *args) {
         if (ret < step) {
             LOG_ERRNO_RETURN(0, -1, "failed to read from source file. (readn: `)", ret);
         }
-        auto encrypted_len = encrypt_data(cryptor, raw_data.get(), step, encrypted_data.get(),
+        auto encrypted_len = encrypt_data(cryptor, opt.hk, raw_data.get(), step, encrypted_data.get(),
                                             buf_size, opt.verify);
         ret = as->write(encrypted_data.get(), encrypted_len);
         if (ret < (ssize_t)encrypted_len) {
@@ -780,8 +802,16 @@ int efile_encrypt(IFile *file, IFile *as, const CryptArgs *args) {
     return 0;
 }
 
-int efile_decrypt(IFile *src, IFile *dst) {
-    auto file = (EncryptionFile *)efile_open_ro(src, /*verify = */ true);
+int efile_decrypt(IFile *src, IFile *dst, const CryptArgs *args) {
+    if (args == nullptr) {
+        LOG_ERROR_RETURN(EINVAL, -1, "CryptArgs is null");
+    }
+
+    CryptOptions opt = args->opt;
+    LOG_INFO("create decrypt file. [ block size: `, type: `, enable_checksum: `]", opt.block_size,
+             opt.type, opt.verify);
+
+    auto file = (EncryptionFile *)efile_open_ro(src, &opt, /*verify = */ true);
     DEFER(delete file);
     if (file == nullptr) {
         LOG_ERROR_RETURN(0, -1, "failed to read file.");

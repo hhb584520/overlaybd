@@ -576,9 +576,9 @@ TEST_F(FileTest2, commit_efile) {
     auto fn_c1 = "commit1";
     auto fcommit0 = lfs->open(fn_c0, O_RDWR | O_CREAT | O_TRUNC, S_IRWXU);
     auto fcommit1 = lfs->open(fn_c1, O_RDWR | O_CREAT | O_TRUNC, S_IRWXU);
-    CompressOptions opt;
+    CryptOptions opt;
     opt.verify = 1;
-    CompressArgs efile_args(opt);
+    CryptArgs efile_args(opt);
     auto fstream_efile = EFile::new_efile_builder(fcommit1, &efile_args);
     CommitArgs args1(fstream_efile);
 

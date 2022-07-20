@@ -18,82 +18,77 @@
 #include <photon/common/alog.h>
 #include <memory>
 
-namespace EFile {
+#define AES_MAX_INPUT_SIZE        0x7E000000   /* 2 113 929 216 bytes */
+int CryptBound(int isize) {
 
-typedef enum { KPT, CPU } ProviderType;
+    if ((unsigned)isize > (unsigned)AES_MAX_INPUT_SIZE) {
+        return 0;
+    }
+    else {
+        return ((isize) + ((isize)/255) + 16);
+    }
+}
+
+namespace EFile {
 
 class Cryptor_aes : public ICryptor {
 private:
-    int getPuk(CpaInstanceHandle cyInstHandle) {
-        return 0;
-    }
+    IPlugin *m_plugin = nullptr;
 
-    int checkAES() {
-        return 0;
-    }
 public:
     uint32_t max_dst_size = 0;
     uint32_t src_blk_size = 0;
-    KeyHandle hk = NULL;
 
     int init(const CryptArgs *args) {
         int ret = 0;
-        char SWK[17] = "5678123490897809";
-
-        // check if AES is ready
-        ret = checkAES();
-        if (ret != 0) {
-            LOG_ERROR_RETURN(EINVAL, -1, "AES software is not ready.");
-        } 
 
         auto opt = &args->opt;
         if (opt == nullptr) {
             LOG_ERROR_RETURN(EINVAL, -1, "CryptOptions* is nullptr.");
         };
-        if (opt->type != CryptOptions::AES) {
-            LOG_ERROR_RETURN(EINVAL, -1,
-                             "Encryption type invalid. (expected: CryptOptions::AES)");
-        }
-        src_blk_size = opt->block_size;
-        max_dst_size = AES_cryptBound(src_blk_size);
 
-        loadKey(SWK);
+        src_blk_size = opt->block_size;
+        max_dst_size = CryptBound(src_blk_size);
+
+        PluginOptions popt;
+        popt.prk = args->prk;  // private key
+        popt.type = CryptOptions::AES;
+        PluginArgs plugin_args(popt);
+        
+        m_plugin = create_plugin(&plugin_args);
 
         return 0;
     }
 
     /*
-     * SWK: user key
-     * hk: key handle
+     * puk_lek: the lek is wrapped by puk.
+     * return 
+     *   hk: KeyHandle
      */
-    int loadKey(char *SWK) {
+    int loadKey(char *puk_lek, KeyHandle *hk) {
         int ret = 0;
-        CpaCyAesPublicKey publicKey;
-        CpaInstanceHandle cyInstHandle;
 
-        ret = getPuk(cyInstHandle);
-        if (ret != 0) {
-            LOG_ERROR_RETURN(EINVAL, -1, "Generate public key fail.");
-        }
         // TBD from cyInstHandle get public key.
         // step2: Use the public key to encrypt SWK return key handle.
-        AesKey aeskey;
-        aeskey.skey = SWK; 
-        ret = AES_loadKey(publicKey, &aeskey, &hk);
+        ret = m_plugin->loadKey(puk_lek, hk);
         if (ret != 0) {
             LOG_ERROR_RETURN(EINVAL, -1, "Load Key fail.");
+            hk = NULL;
         }
 
-        return 0;
+        return ret;
     }
 
-    int encrypt(const unsigned char *src, size_t src_len, unsigned char *dst,
-                 size_t dst_len) override {
+    int encrypt(KeyHandle hk,
+                const unsigned char *src,
+                size_t src_len,
+                unsigned char *dst,
+                size_t dst_len) override {
         if (dst_len < max_dst_size) {
             LOG_ERROR_RETURN(ENOBUFS, -1, "dst_len should be greater than `", max_dst_size - 1);
         }
 
-        auto ret = AES_encrypt(hk, (const unsigned char *)src, (unsigned char *)dst, src_len, dst_len);
+        auto ret = m_plugin->decrypt(hk, (const unsigned char *)src, src_len, (unsigned char *)dst, dst_len);
         if (ret < 0) {
             LOG_ERROR_RETURN(EFAULT, -1, "AES encrypt data failed. (retcode: `).", ret);
         }
@@ -105,13 +100,16 @@ public:
         return ret;
     }
 
-    int decrypt(const unsigned char *src, size_t src_len, unsigned char *dst,
-                   size_t dst_len) override {
+    int decrypt(KeyHandle hk,
+                const unsigned char *src,
+                size_t src_len,
+                unsigned char *dst,
+                size_t dst_len) override {
         if (dst_len < src_blk_size) {
             LOG_ERROR_RETURN(0, -1, "dst_len (`) should be greater than encrypted block size `",
                              dst_len, src_blk_size);
         }
-        auto ret = AES_decrypt(hk, (const unsigned char *)src, (unsigned char *)dst, dst_len, src_len);
+        auto ret = m_plugin->decrypt(hk, (const unsigned char *)src, src_len, (unsigned char *)dst, dst_len);
         if (ret < 0) {
             LOG_ERROR_RETURN(EFAULT, -1, "AES decrypt data failed. (retcode: `)", ret);
         }

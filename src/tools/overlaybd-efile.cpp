@@ -54,6 +54,10 @@ int usage() {
 
 IFileSystem *lfs = nullptr;
 
+// haibin TBD generate key pair , virtual KMS
+
+// haibin TBD generate symmtric key, virtual KMS
+
 int main(int argc, char **argv) {
     log_output_level = 1;
     int ch;
@@ -61,8 +65,11 @@ int main(int argc, char **argv) {
     int parse_idx = 1;
     bool rm_old = false;
     bool tar = false;
+    char prk[17] = "5678123490897809";
     CryptOptions opt;
     opt.verify = 1;
+    opt.puk_lek = prk;
+
     while ((ch = getopt(argc, argv, "fxd:")) != -1) {
         switch (ch) {
         case 'd':
@@ -94,6 +101,11 @@ int main(int argc, char **argv) {
         LOG_INFO("create tar header.");
         fs = new_tar_fs_adaptor(lfs);
     }
+
+    // haibin: TBD generate keypair, define PRK in opt
+    // PRK will input in init()
+    // PUK will will in caller, the caller will PUK{LEK}
+    // if for KMS, KMS will generate LEK and wrapped with PUK return PUK{LEK}.
 
     int ret = 0;
     CryptArgs args(opt);
@@ -132,7 +144,7 @@ int main(int argc, char **argv) {
         }
         DEFER(delete outfile);
 
-        ret = efile_decrypt(infile, outfile);
+        ret = efile_decrypt(infile, outfile, &args);
         if (ret != 0) {
             LOG_ERROR_RETURN(0, -1, "decrypt fail. (err: `, msg: `)", errno, strerror(errno));
         }
